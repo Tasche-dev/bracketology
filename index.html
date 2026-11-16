@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bracketologist Pro</title>
+<style>
+:root{--bg:#12161c;--panel:#1b212b;--line:#2b3442;--ink:#e8edf3;--mute:#8d99aa;--acc:#f2b134;--up:#4ec28a;--dn:#e0675f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Trebuchet MS",Verdana,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header{padding:20px 18px 6px;max-width:1100px;margin:auto}
+h1{margin:0;font:700 28px Georgia,serif;letter-spacing:.2px}
+.sub{color:var(--mute);font-size:13px;margin-top:4px}
+nav{max-width:1100px;margin:12px auto 0;padding:0 18px;display:flex;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;color:var(--mute);padding:10px 14px;font:inherit;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);border-color:var(--acc)}
+nav button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc)}
+main{max-width:1100px;margin:auto;padding:16px 18px 40px}
+.seed{display:grid;grid-template-columns:54px 1fr;gap:10px;margin-bottom:10px}
+.n{font:700 26px Georgia,serif;color:var(--acc);padding-top:8px;text-align:center}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.t{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:150px;flex:1 1 150px;max-width:260px}
+.t b{display:block}.t small{color:var(--mute)}
+.bid{border-left:3px solid var(--acc)}
+.new{color:var(--acc);font-size:11px;margin-left:4px}
+h2{font:700 18px Georgia,serif;margin:26px 0 8px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.card div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)}
+.card div:last-child{border:0}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:nth-child(-n+3),td:nth-child(-n+3){text-align:left}
+th{color:var(--mute);font-weight:600;position:sticky;top:0;background:var(--bg)}
+.note{color:var(--mute);font-size:13px;max-width:80ch}
+.hide{display:none}
+.pick{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;max-width:700px}
+.pick label{display:block;color:var(--mute);font-size:13px;margin-bottom:4px}
+select{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:9px;font:inherit}
+button.sw{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font:inherit;cursor:pointer}
+.loc{margin:14px 0;display:flex;gap:16px;flex-wrap:wrap}
+.loc label{cursor:pointer}
+.res{max-width:700px;margin-top:8px}
+.score{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center}
+.score div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 8px}
+.score .big{font:700 40px Georgia,serif;display:block}
+.score .win{border-color:var(--acc)}
+.bar{height:10px;background:var(--dn);border-radius:5px;overflow:hidden;margin:8px 0 4px}
+.bar i{display:block;height:100%;background:var(--up)}
+</style></head><body>
+<header><h1>Bracketologist Pro</h1>
+<div class="sub">Ratings as of Nov 16, 2026. Field built from KenPom + EvanMiya, adjusted for losses.</div></header>
+<nav><button class="on" data-v="b">Bracket</button><button data-v="s">Team sheets</button><button data-v="p">Predictions</button></nav>
+<main>
+<section id="b"></section>
+<section id="s" class="hide"></section>
+<section id="p" class="hide"></section>
+</main>
+<script>
+fetch('data.json?v='+Date.now()).then(r=>r.json()).then(D=>{
+const T=D.teams;
+document.querySelector(".sub").textContent="Updated "+new Date(D.updated).toLocaleString()+". Field built from KenPom + EvanMiya, adjusted for losses."+(Object.values(D.sources).includes("stale")?" Some sources failed on the last refresh, so those numbers are carried over.":"");
+// Score = average of KenPom and EvanMiya rank (EvanMiya assumed ~105 if outside its top 100), plus 1.5 per loss. Lower is better.
+T.forEach(t=>{const em=t.em||Math.max(t.kp,105);t.s=(t.kp+em)/2+1.5*t.l});
+T.sort((a,b)=>a.s-b.s);T.forEach((t,i)=>t.r=i+1);
+// Auto-bid: best-scoring team in each conference. At-large: best remaining teams to fill 68.
+const best={};T.forEach(t=>{if(!best[t.c])best[t.c]=t});
+T.forEach(t=>t.auto=best[t.c]===t);
+const autos=T.filter(t=>t.auto),nAtl=68-autos.length;
+const atl=T.filter(t=>!t.auto).slice(0,nAtl);
+const field=autos.concat(atl).sort((a,b)=>a.s-b.s);
+const out=T.filter(t=>!t.auto).slice(nAtl,nAtl+4);
+const sizes=[4,4,4,4,4,4,4,4,4,4,6,4,4,4,4,6];
+let i=0;const lines=sizes.map((z,k)=>({seed:k+1,teams:field.slice(i,i+=z)}));
+const mv=t=>t.pre&&t.em?t.pre-t.em:null;
+const tag=t=>{const m=mv(t);return m===null?"":` <span class="${m>0?'up':m<0?'dn':''}">${m>0?'▲':m<0?'▼':''}${m?Math.abs(m):''}</span>`};
+let h="<p class='note'>Seeds follow a blended rating rank (KenPom + EvanMiya) with a small penalty per loss. Gold edge = automatic bid (top-rated team in its conference). Arrows show change vs EvanMiya's preseason rank. Neither source has NET, WAB or Quad data yet.</p>";
+lines.forEach(L=>{h+=`<div class="seed"><div class="n">${L.seed}</div><div class="row">`+L.teams.map(t=>`<div class="t ${t.auto?'bid':''}"><b>${t.n}${t.n==="High Point"?'<span class="new">new</span>':''}</b><small>${t.c} · ${t.w}-${t.l} · KP ${t.kp}${t.em?' · EM '+t.em:''}${tag(t)}</small></div>`).join("")+`</div></div>`});
+h+="<h2>First teams out</h2><div class='row'>"+out.map(t=>`<div class="t"><b>${t.n}</b><small>${t.c} · ${t.w}-${t.l} · KP ${t.kp}</small></div>`).join("")+"</div>";
+const m=T.filter(t=>mv(t)!==null).sort((a,b)=>mv(b)-mv(a));
+const li=t=>`<div><span>${t.n}</span><span class="${mv(t)>0?'up':'dn'}">${mv(t)>0?'+':''}${mv(t)} (${t.pre}→${t.em})</span></div>`;
+h+="<h2>Movers since preseason</h2><div class='cols'><div class='card'><b>Rising</b>"+m.slice(0,8).map(li).join("")+"</div><div class='card'><b>Falling</b>"+m.slice(-8).reverse().map(li).join("")+"</div></div>";
+const inF=new Set(field);
+h+="<h2>Strong ratings, not in the field</h2><p class='note'>"+T.filter(t=>!inF.has(t)&&t.kp<=60).map(t=>`${t.n} (KP ${t.kp}, ${t.w}-${t.l})`).join(", ")+"</p>";
+document.getElementById("b").innerHTML=h;
+
+// Team sheets
+const d=(v,k)=>v+" <small style='color:var(--mute)'>#"+k+"</small>";
+let s="<h2>Résumé</h2><div class='wrap'><table><thead><tr><th>Rank</th><th>Team</th><th>Conf</th><th>W-L</th><th>KenPom</th><th>Net rtg</th><th>SOS rank</th><th>EvanMiya</th><th>Preseason EM</th><th>Status</th></tr></thead><tbody>";
+T.forEach(t=>{const idx=field.indexOf(t);const st=idx<0?(out.includes(t)?"First out":""):`${lines.find(L=>L.teams.includes(t)).seed}-seed${t.auto?' (auto)':''}`;
+s+=`<tr><td>${t.r}</td><td>${t.n}</td><td>${t.c}</td><td>${t.w}-${t.l}</td><td>${t.kp}</td><td>${t.net>0?'+':''}${t.net.toFixed(2)}</td><td>${t.sos}</td><td>${t.em||'—'}</td><td>${t.pre||'—'}</td><td>${st}</td></tr>`});
+s+="</tbody></table></div><h2>Offense and defense</h2><p class='note'>KenPom ratings are points per 100 possessions against an average team (higher offense and lower defense are better). EvanMiya O-Rate and D-Rate are both better when higher.</p><div class='wrap'><table><thead><tr><th>Rank</th><th>Team</th><th>Conf</th><th>KP offense</th><th>KP defense</th><th>Tempo</th><th>EM offense</th><th>EM defense</th></tr></thead><tbody>";
+T.forEach(t=>{s+=`<tr><td>${t.r}</td><td>${t.n}</td><td>${t.c}</td><td>${d(t.or.toFixed(1),t.ork)}</td><td>${d(t.dr.toFixed(1),t.drk)}</td><td>${t.tp.toFixed(1)}</td><td>${t.em?t.eo.toFixed(1):'—'}</td><td>${t.em?t.ed.toFixed(1):'—'}</td></tr>`});
+document.getElementById("s").innerHTML=s+"</tbody></table></div>";
+
+// Predictions
+const names=T.map(t=>t.n).sort((a,b)=>a.localeCompare(b));
+const opts=sel=>names.map(n=>`<option${n===sel?' selected':''}>${n}</option>`).join("");
+document.getElementById("p").innerHTML=`<p class="note">Pick any two teams and where the game is played. Scores come from each team's KenPom offense, defense and tempo, with 3.5 points for home court.</p>
+<div class="pick"><div><label for="ta">Team A</label><select id="ta">${opts("Duke")}</select></div><button class="sw" id="sw" aria-label="Swap teams">⇄</button><div><label for="tb">Team B</label><select id="tb">${opts("Florida")}</select></div></div>
+<div class="loc" id="loc"></div><div class="res" id="res"></div>`;
+const erf=x=>{const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);return s*(1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x))};
+const cdf=z=>0.5*(1+erf(z/Math.SQRT2));
+const byName=n=>T.find(t=>t.n===n);
+function run(){
+ const ta=document.getElementById("ta"),tb=document.getElementById("tb"),a=byName(ta.value),b=byName(tb.value);
+ const cur=(document.querySelector("input[name=loc]:checked")||{}).value||"n";
+ document.getElementById("loc").innerHTML=[["n","Neutral court"],["a",a.n+" at home"],["b",b.n+" at home"]].map(x=>`<label><input type="radio" name="loc" value="${x[0]}" ${x[0]===cur?'checked':''}> ${x[1]}</label>`).join("");
+ document.querySelectorAll("input[name=loc]").forEach(r=>r.onchange=run);
+ const res=document.getElementById("res");
+ if(a===b){res.innerHTML="<p class='note'>Choose two different teams.</p>";return}
+ const poss=a.tp*b.tp/70;
+ let pa=poss*(a.or*b.dr/106)/100,pb=poss*(b.or*a.dr/106)/100,hc=cur==="a"?3.5:cur==="b"?-3.5:0;
+ pa+=hc/2;pb-=hc/2;
+ const mg=pa-pb,pw=cdf(mg/11);
+ let ra=Math.round(pa),rb=Math.round(pb);if(ra===rb){mg>=0?ra++:rb++}
+ const fav=mg>=0?a:b,favp=Math.max(pw,1-pw);
+ let em="";
+ if(a.em&&b.em){const m2=((a.eo+a.ed)-(b.eo+b.ed))*poss/100+hc;em=`<p class="note">EvanMiya's ratings alone give ${m2>=0?a.n:b.n} by ${Math.abs(m2).toFixed(1)}.</p>`}
+ res.innerHTML=`<div class="score"><div class="${mg>=0?'win':''}">${a.n}<span class="big">${ra}</span></div><div class="${mg<0?'win':''}">${b.n}<span class="big">${rb}</span></div></div>
+ <p><b>${fav.n}</b> by ${Math.abs(mg).toFixed(1)}. Total ${(pa+pb).toFixed(0)} points, about ${poss.toFixed(0)} possessions.</p>
+ <div class="bar"><i style="width:${(pw*100).toFixed(1)}%"></i></div>
+ <p class="note">${a.n} ${(pw*100).toFixed(0)}% · ${b.n} ${((1-pw)*100).toFixed(0)}%</p>${em}
+ <p class="note">Early-season ratings come from only a handful of games and don't account for injuries.</p>`;
+}
+document.getElementById("ta").onchange=run;document.getElementById("tb").onchange=run;
+document.getElementById("sw").onclick=()=>{const x=document.getElementById("ta"),y=document.getElementById("tb");const v=x.value;x.value=y.value;y.value=v;run()};
+run();
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));["b","s","p"].forEach(id=>document.getElementById(id).classList.toggle("hide",id!==b.dataset.v))});
+}).catch(e=>{document.getElementById('b').innerHTML='<p class="note">Could not load data.json: '+e+'</p>'});
+</script></body></html>
